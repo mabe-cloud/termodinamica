@@ -28,11 +28,8 @@ class set_PT_units:
             - Kelvin (K)
             - Rankine (°R)
         - Pressão:
-            - psi (libra-força por polegada quadrada)
-            - psia (psi absoluto - mesmo valor numérico que psi)
+            - psi/psia (libra-força por polegada quadrada)
             - Pa (Pascal)
-            - kPa (quilopascal)
-            - MPa (megapascal)
             - bar
             - atm (atmosfera padrão)
         """
@@ -82,7 +79,7 @@ class set_PT_units:
         raise ValueError(f"Conversão de {from_unity} para {to_unity} não suportada")
 
     @staticmethod
-    def Pressure(value, from_unity, to_unity='psi'):
+    def Pressure(value, from_unity, to_unity):
        
         
         if to_unity == 'psi':
@@ -117,7 +114,7 @@ class set_PT_units:
 class GasPhase_Correlations:
     """
     Classe para cálculo das propriedades termodinâmicas de gases.
-    Implementa correlações:
+    Correlações implementadas:
     - Papay (1985)
     - Lee et al. (1966)
     Retorna a massa específica, a compressibilidade e a viscosidade do gás.
