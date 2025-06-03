@@ -1,26 +1,152 @@
 import numpy as np
-from barril.units import Scalar
-from barril.units import ChangeScalars
+
+class set_PT_units:
+    """
+    Classe para conversão de unidades de temperatura e pressão.
+    Fornece métodos estáticos para conversão entre diferentes escalas termométricas
+    e unidades de pressão comumente usadas em engenharia e ciências.
+    
+    Métodos:
+    ----------
+        Temperature(value, from_unity, to_unity): Converte valores de temperatura
+        Pressure(value, from_unity, to_unity): Converte valores de pressão
+        
+    Parâmetros:
+    ----------
+            value (float): Valor numérico da temperatura a ser convertida
+            from_unity (str): Unidade de origem ('C', 'F', 'K' ou 'R')
+            to_unity (str): Unidade de destino ('C', 'F', 'K' ou 'R')
+            
+    Retorna:
+    --------
+            float: Valor convertido na unidade desejada
+            
+        Escalas suportadas:
+        - Temperatura:
+            - Celsius (°C)
+            - Fahrenheit (°F)
+            - Kelvin (K)
+            - Rankine (°R)
+        - Pressão:
+            - psi (libra-força por polegada quadrada)
+            - psia (psi absoluto - mesmo valor numérico que psi)
+            - Pa (Pascal)
+            - kPa (quilopascal)
+            - MPa (megapascal)
+            - bar
+            - atm (atmosfera padrão)
+        """
+
+    @staticmethod
+    def Temperature(value, from_unity, to_unity):
+        
+        if from_unity == 'C':
+            if to_unity == 'F':
+                return (value * 9/5) + 32
+            elif to_unity == 'K':
+                return value + 273.15
+            elif to_unity == 'R':
+                return (value + 273.15) * 9/5
+        
+      
+        elif from_unity == 'F':
+            if to_unity == 'C':
+                return (value - 32) * 5/9
+            elif to_unity == 'K':
+                return (value - 32) * 5/9 + 273.15
+            elif to_unity == 'R':
+                return value + 459.67
+        
+        
+        elif from_unity == 'K':
+            if to_unity == 'C':
+                return value - 273.15
+            elif to_unity == 'F':
+                return (value - 273.15) * 9/5 + 32
+            elif to_unity == 'R':
+                return value * 9/5
+        
+        
+        elif from_unity == 'R':
+            if to_unity == 'C':
+                return (value - 491.67) * 5/9
+            elif to_unity == 'F':
+                return value - 459.67
+            elif to_unity == 'K':
+                return value * 5/9
+        
+        
+        if from_unity == to_unity:
+            return value
+        
+        raise ValueError(f"Conversão de {from_unity} para {to_unity} não suportada")
+
+    @staticmethod
+    def Pressure(value, from_unity, to_unity='psi'):
+       
+        
+        if to_unity == 'psi':
+            if from_unity == 'Pa':
+                return value / 6894.76
+            elif from_unity == 'bar':
+                return value * 14.5038
+            elif from_unity == 'atm':
+                return value * 14.6959
+            elif from_unity == 'psi':
+                return value
+        
+        
+        elif from_unity == 'psi':
+            if to_unity == 'Pa':
+                return value * 6894.76
+            elif to_unity == 'bar':
+                return value / 14.5038
+            elif to_unity == 'atm':
+                return value / 14.6959
+        
+        
+        elif from_unity == 'bar' and to_unity == 'atm':
+            return value * 0.986923
+        
+       
+        if from_unity == to_unity:
+            return value
+        
+        raise ValueError(f"Conversão de {from_unity} para {to_unity} não suportada")
 
 class GasPhase_Correlations:
     """
-    Classe contendo funções que calculam a viscosidade do gás, sua compressibilidade e sua massa específica.
-    Usa correlação de Papay para encontrar o fator Z e Lee para encontrar a viscosidade.
-
+    Classe para cálculo das propriedades termodinâmicas de gases.
+    Implementa correlações:
+    - Papay (1985)
+    - Lee et al. (1966)
+    Retorna a massa específica, a compressibilidade e a viscosidade do gás.
+    
     Parâmetros
     ----------
     dg : float
-        Densidade do gás
+        Densidade do gás (adimensional)
     P : float
-        Pressão
+        Pressão (unidades especificadas no parâmetro units)
     T : float
-        Temperatura
+        Temperatura (unidades especificadas no parâmetro units)
+    units : list
+        Lista com unidades de [pressão, temperatura] respectivamente
     """
-    def __init__(self, dg, P, T):
+    def __init__(self, dg, P, T, units):
+        
         if dg == None:
             self.dg = self.rho_g()/self.rho_ar
         else:
             self.dg = dg
+
+        a, b = units
+        
+        self.T = set_PT_units.Temperature(T, b, 'R')
+        
+
+    
+        self.P = set_PT_units.Pressure(P, a, 'psia')
 
         if self.dg < 0.75:
             self.Ppc = 677 + 15.0*self.dg - 37.5*(self.dg**2)
@@ -28,24 +154,27 @@ class GasPhase_Correlations:
         else:
             self.Ppc = 706 - 51.7*self.dg - 11.1*(self.dg**2)
             self.Tpc = 187 + 330*self.dg - 71.5*(self.dg**2)
+        
+
         self.standardconditions()
-        self.T = T.GetValue('degR')
-        self.P = P.GetValue('psia')
+
         self.Ppr = self.P/self.Ppc
         self.Tpr = self.T/self.Tpc
         self.Mg = self.dg * 28.96 #M ar
+        self.units = ['psia', 'R']
 
     def standardconditions(self):
         self.Psc = 14.7 #psia
         self.Tsc = 60 #F
     
+
+
     def rho_g(self):
         R = 10.73 # psia·ft³/ (lb·mol·°R)
         return (self.P * self.Mg)/(self.Z() * R * self.T)
     
     def Bg(self):
-        T = self.T.GetValue('degF')
-        return self.Psc/(self.Tsc) * self.Z() * (T/self.P)
+        return self.Psc/(self.Tsc) * self.Z() * (set_PT_units.Temperature(self.T,'R','F'))/self.P
 
    ## Papay (1985)
 
@@ -74,7 +203,7 @@ class GasPhase_Correlations:
 
     def mu_dempsey(self, dg=None, Tpr=None, Ppr=None):
 
-        mu_g = (1.709e-5 - 2.062e-6 * self.dg) * (self.T-460) + 8.188e-3 - 6.15e-3 * np.log10(self.dg)
+        mu_g = (1.709e-5 - 2.062e-6 * self.dg) * (set_PT_units.Temperature(self.T,'R','F')) + 8.188e-3 - 6.15e-3 * np.log10(self.dg)
         print('mu_g: ', mu_g)
         a0 = -2.4621
         a1 = 2.9705
@@ -116,47 +245,52 @@ class GasPhase_Correlations:
     def Cg(self):
         return self.Cpr()/self.Ppc
 
-    @staticmethod
-    def output(dg, P, T):
-        rho_g = GasPhase_Correlations(dg, P, T).rho_g()
-        #Z = GasPhase_Correlations(dg, P, T).Z()
-        Cg = GasPhase_Correlations(dg, P, T).Cg()
-        mu = GasPhase_Correlations(dg, P, T).mu_lee1966()
-        #Bg = GasPhase_Correlations(self.dg, self.P, self.T).Bg()
+    def output(self):
+        rho_g = GasPhase_Correlations(self.dg, self.P, self.T, self.units).rho_g()
+        Cg = GasPhase_Correlations(self.dg, self.P, self.T, self.units).Cg()
+        mu = GasPhase_Correlations(self.dg, self.P, self.T, self.units).mu_lee1966()
 
-        print('Massa específica do gás: ', rho_g)  # bateu
-        #print('Fator Z: ', Z)  # bateu
-        print('Compressibilidade do gás: ', Cg)  # bateu
-        print('Viscosidade do gás: ', mu)  # N bateu
-        #print('Bg: ', Bg)  # bateu
+        print(f'Massa específica do gás: {rho_g:.4f} lbm/ft³')  
+        print(f'Compressibilidade do gás: {Cg:.4e} psi⁻¹')  
+        print(f'Viscosidade do gás: {mu:.4f} cp')
         return rho_g, Cg, mu
 
 class OilPhase_Correlations:
     """
-    Classe contendo funções que calculam as viscosidades do óleo, sua compressibilidade e sua massa específica.
-    Usa das correlações de Beggs e Robinson para calcular as viscosidades e a correlação Standing para calcular a
-    compressibilidade.
-
+    Classe para cálculo das propriedades termodinâmicas do óleo.
+    Calcula as viscosidades dos óleos (morto e saturado), compressibilidade e massa específica.
+    
+    Correlações implementadas:
+    
+        - Beggs e Robinson
+        - Standing
+    
     Parâmetros
     ----------
     do : float
-        Densidade do óleo
+        Densidade do óleo (adimensional)
+        Ou None se fornecido API
     dg : float
-        Densidade do gás
+        Densidade do gás (adimensional)
     API : float
-        Grau API
+        Grau API do óleo (opcional, se não fornecido do)
     P : float
-        Pressão
+        Pressão (unidades especificadas em Units)
     Pb : float
-        Pressão de bolha
+        Pressão de bolha (unidades especificadas em Units)
     T : float
-        Temperatura
-    """
-    def __init__(self, do, dg, API, P, Pb, T):
+        Temperatura (unidades especificadas em Units)
+    Units : list
+        Lista com unidades de [P, Pb, T] (ex: ['psia', 'psia', 'F'])
 
-        self.Pb = Pb.GetValue('psia')
-        self.P = P.GetValue('psia')
-        self.T = T.GetValue('degF')
+    """
+    def __init__(self, do, dg, API, P, Pb, T, Units):
+
+        a, b, c = Units
+        
+        self.P = set_PT_units.Pressure(P, a, 'psia')
+        self.T = set_PT_units.Temperature(T, c, 'F')
+
         self.dg = dg
 
         if do == None:
@@ -169,8 +303,12 @@ class OilPhase_Correlations:
         if Pb == None:
             self.Pb = self.bubblepressure()
         else:
+            self.Pb = set_PT_units.Pressure(Pb, b, 'psia')
             self.Rs()
+
+        self.units = ['psia', 'psia', 'F']
     
+        
     ## Standing
     def bubblepressure(self):
 
@@ -202,8 +340,8 @@ class OilPhase_Correlations:
             b = 0.0007141 * (self.P - self.Pb) - 12.938
             return 1e-6 * np.exp(a/b)
         else:
-            T = self.T.GetValue('DegR')
-            return -1/self.Bo() * self.dBodP() + GasPhase_Correlations(self.dg, self.P, T).Bg()/self.Bo() * self.dRsdP()
+            u = ['psia', 'R']
+            return -1/self.Bo() * self.dBodP() + GasPhase_Correlations(self.dg, self.P, set_PT_units.Temperature(self.T, 'F', 'R'), u).Bg()/self.Bo() * self.dRsdP()
         
     def Bo(self):
         if self.P > self.Pb:
@@ -233,20 +371,16 @@ class OilPhase_Correlations:
         b = 5.44 * (self.Rs() + 150)**(-0.338)
         return a * self.mu_od()**b
 
-    @staticmethod
-    def output(do, dg, P, Pb, T):
-        #Rs = OilPhase_Correlations(do=self.do, dg=self.dg, API=None, P=self.P, Pb=self.Pb, T=self.T).Rs()
-        #Bo = OilPhase_Correlations(do=self.do, dg=self.dg, API=None, P=self.P, Pb=self.Pb, T=self.T).Bo()
-        rho_o = OilPhase_Correlations(do=do, dg=dg, API=None, P=P, Pb=Pb, T=T).rho_o()
-        Co = OilPhase_Correlations(do=do, dg=dg, API=None, P=P, Pb=Pb, T=T).Co()
-        mu_od = OilPhase_Correlations(do=do, dg=dg, API=None, P=P, Pb=Pb, T=T).mu_od()
-        mu_ob = OilPhase_Correlations(do=do, dg=dg, API=None, P=P, Pb=Pb, T=T).mu_ob()
+    def output(self):
+        
+        rho_o = OilPhase_Correlations(do=self.do, dg=self.dg, API=None, P=self.P, Pb=self.Pb, T=self.T, Units = self.units).rho_o()
+        Co = OilPhase_Correlations(do=self.do, dg=self.dg, API=None, P=self.P, Pb=self.Pb, T=self.T, Units = self.units).Co()
+        mu_od = OilPhase_Correlations(do=self.do, dg=self.dg, API=None, P=self.P, Pb=self.Pb, T=self.T, Units = self.units).mu_od()
+        mu_ob = OilPhase_Correlations(do=self.do, dg=self.dg, API=None, P=self.P, Pb=self.Pb, T=self.T, Units = self.units).mu_ob()
 
-        #print('Razão de solubilidade gás-óleo: ', Rs)  # bateu
-        #print('Fator volume- formação do óleo: ', Bo)  # bateu
-        print('Massa específica do óleo: ', rho_o)  # bateu
-        print('Compressibilidade do óleo: ', Co)  # será q bateu?
-        print('Viscosidade do óleo morto: ', mu_od)  # bateu
-        print('Viscosidade do óleo saturado: ', mu_ob)  # bateu
+    
+        print(f'Massa específica do óleo: {rho_o:.2f} lbm/ft³')  
+        print(f'Compressibilidade do óleo: {Co:.4e} psi⁻¹')  
+        print(f'Viscosidade do óleo morto: {mu_od:.3f} cp')  
+        print(f'Viscosidade do óleo saturado: {mu_ob:.3f} cp')
         return rho_o, Co, mu_od, mu_ob
-
